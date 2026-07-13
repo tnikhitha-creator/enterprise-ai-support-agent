@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from tools.agent_orchestrator import run_support_agent
+from backend.app.agents.orchestrator import run_support_agent
 
 
 app = FastAPI()

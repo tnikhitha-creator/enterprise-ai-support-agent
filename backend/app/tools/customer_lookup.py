@@ -8,7 +8,7 @@ def get_customer_details(email: str):
     Reads customer records from data/customers.json.
     """
 
-    file_path = Path("data/customers.json")
+    file_path = Path("data/demo/customers.json")
 
     if not file_path.exists():
         return {

@@ -4,3 +4,20 @@ __pycache__/
 *.pyc
 .DS_Store
 .vscode/
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Local databases and generated indexes
+chroma_db/
+*.sqlite3
+
+# macOS
+.DS_Store

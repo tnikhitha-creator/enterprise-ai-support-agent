@@ -8,7 +8,7 @@ COLLECTION_NAME = "support_knowledge"
 
 def load_documents():
     docs = []
-    folder = "knowledge_base"
+    folder = "data/knowledge_base"
 
     for filename in os.listdir(folder):
         if filename.endswith(".txt"):
