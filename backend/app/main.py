@@ -1,56 +1,52 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from backend.app.agents.orchestrator import run_support_agent
+from backend.app.api.admin import router as admin_router
 
+app = FastAPI(
+    title="Agent Hub API",
+    version="2.0.0",
+)
+app.include_router(admin_router)
 
-app = FastAPI()
-
-
-class SupportMessage(BaseModel):
+class SupportRequest(BaseModel):
     email: str
     message: str
 
 
-def generate_response(agent_result: dict):
-    customer = agent_result["customer"]
-    ai_result = agent_result["ai_classification"]
-    knowledge = agent_result["knowledge_base"]
-    jira_result = agent_result["jira"]
-
-    name = customer["name"]
-    intent = ai_result["intent"]
-    summary = ai_result["summary"]
-    source = knowledge["source"]
-
-    if jira_result and jira_result.get("created"):
-        ticket_text = f"A Jira ticket has been created: {jira_result['ticket_id']}."
-    else:
-        ticket_text = "No Jira ticket was created."
-
-    return (
-        f"Hi {name}, your request was classified as {intent}. "
-        f"Summary: {summary}. "
-        f"I found guidance from {source}. "
-        f"{ticket_text}"
-    )
-
-
-@app.get("/")
-def home():
-    return {"status": "AI Support Agent is running with Agent Orchestrator, Llama, RAG, and Jira"}
+@app.get("/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "service": "Agent Hub",
+    }
 
 
 @app.post("/support")
-def support_agent(input_data: SupportMessage):
-    agent_result = run_support_agent(input_data.email, input_data.message)
-    response = generate_response(agent_result)
+def support(request: SupportRequest):
+    try:
+        agent_result = run_support_agent(
+            email=request.email,
+            message=request.message,
+        )
 
-    return {
-        "input": {
-            "email": input_data.email,
-            "message": input_data.message
-        },
-        "agent_result": agent_result,
-        "output": response
-    }
+        final_response = agent_result.get(
+            "final_response",
+            "The request was processed.",
+        )
+
+        return {
+            "input": {
+                "email": request.email,
+                "message": request.message,
+            },
+            "agent_result": agent_result,
+            "output": final_response,
+        }
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Agent Hub failed to process the request: {exc}",
+        ) from exc

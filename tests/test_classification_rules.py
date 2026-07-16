@@ -1,7 +1,9 @@
 import pytest
 
+from backend.app.services import ollama as ollama_service
 from backend.app.services.ollama import (
     apply_business_rules,
+    classify_with_llama,
     extract_first_json,
     normalize_classification,
 )
@@ -66,3 +68,70 @@ def test_normalize_classification_keeps_valid_values_and_applies_business_rules(
     assert result["intent"] == "network_issue"
     assert result["priority"] == "high"
     assert result["requires_ticket"] is True
+
+
+def test_normalize_classification_high_confidence_when_business_rule_matches():
+    raw = {"intent": "general_support", "priority": "low", "summary": "VPN drops constantly"}
+
+    result = normalize_classification(raw, "My VPN drops every few minutes")
+
+    assert result["classification_method"] == "business_rule"
+    assert result["confidence"] == 90
+
+
+def test_normalize_classification_moderate_confidence_when_llm_only():
+    raw = {"intent": "feature_request", "priority": "low", "summary": "Add dark mode please"}
+
+    result = normalize_classification(raw, "Add dark mode please")
+
+    assert result["classification_method"] == "llm_only"
+    assert result["confidence"] == 60
+
+
+def test_normalize_classification_low_confidence_on_fallback_error():
+    raw = {
+        "intent": "general_support",
+        "priority": "medium",
+        "summary": "Something broke",
+        "classification_error": "connection refused",
+    }
+
+    result = normalize_classification(raw, "Something broke")
+
+    assert result["classification_method"] == "fallback_error"
+    assert result["confidence"] == 20
+
+
+def test_classify_with_llama_uses_ollama_when_no_groq_key(monkeypatch):
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+
+    def fake_chat_with_ollama(prompt):
+        return '{"intent": "billing_issue", "priority": "high", "summary": "s", "requires_ticket": true}'
+
+    def fail_if_called_groq(prompt, api_key):
+        raise AssertionError("Groq should not be called when GROQ_API_KEY is unset")
+
+    monkeypatch.setattr(ollama_service, "_chat_with_ollama", fake_chat_with_ollama)
+    monkeypatch.setattr(ollama_service, "_chat_with_groq", fail_if_called_groq)
+
+    result = classify_with_llama("I was charged twice")
+
+    assert result["intent"] == "billing_issue"
+
+
+def test_classify_with_llama_uses_groq_when_key_is_set(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+
+    def fail_if_called_ollama(prompt):
+        raise AssertionError("Ollama should not be called when GROQ_API_KEY is set")
+
+    def fake_chat_with_groq(prompt, api_key):
+        assert api_key == "test-key"
+        return '{"intent": "billing_issue", "priority": "high", "summary": "s", "requires_ticket": true}'
+
+    monkeypatch.setattr(ollama_service, "_chat_with_ollama", fail_if_called_ollama)
+    monkeypatch.setattr(ollama_service, "_chat_with_groq", fake_chat_with_groq)
+
+    result = classify_with_llama("I was charged twice")
+
+    assert result["intent"] == "billing_issue"

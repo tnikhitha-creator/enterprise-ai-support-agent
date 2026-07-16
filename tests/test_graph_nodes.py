@@ -34,9 +34,9 @@ def test_reviewer_node_flags_missing_knowledge_and_summary():
 
 def test_reviewer_node_passes_when_grounded_and_includes_incident_id():
     state = {
-        "ai_classification": {"summary": "Reset the VPN client and reconnect."},
-        "knowledge_base": {"answer_context": "See vpn_help.txt for reconnection steps."},
-        "jira": {"created": True, "ticket_id": "OPS-42"},
+        "ai_classification": {"summary": "Reset the VPN client and reconnect.", "priority": "high"},
+        "knowledge_base": {"answer_context": "See vpn_help.txt for reconnection steps.", "source": "vpn_help.txt", "confidence": 80},
+        "jira": {"created": True, "ticket_id": "OPS-42", "ticket_url": "https://example.atlassian.net/browse/OPS-42"},
         "trajectory": [],
     }
 
@@ -45,6 +45,59 @@ def test_reviewer_node_passes_when_grounded_and_includes_incident_id():
     assert result["verification_status"] == "passed"
     assert result["verification_findings"] == []
     assert "OPS-42" in result["final_response"]
+
+
+def test_reviewer_node_builds_structured_response_summary():
+    state = {
+        "ai_classification": {"summary": "Reset the VPN client.", "priority": "high"},
+        "knowledge_base": {
+            "answer_context": "Restart the router.\nReconnect the VPN client.",
+            "source": "vpn_help.txt",
+            "confidence": 75,
+        },
+        "jira": {"created": True, "ticket_id": "OPS-42", "ticket_url": "https://example.atlassian.net/browse/OPS-42"},
+        "trajectory": [],
+    }
+
+    result = nodes.reviewer_node(state)
+    summary = result["response_summary"]
+
+    assert summary["summary"] == "Reset the VPN client."
+    assert summary["priority"] == "high"
+    assert summary["actions"] == ["Restart the router.", "Reconnect the VPN client."]
+    assert summary["incident"] == {
+        "status": "created",
+        "ticket_id": "OPS-42",
+        "ticket_url": "https://example.atlassian.net/browse/OPS-42",
+    }
+    assert summary["evidence"]["source"] == "vpn_help.txt"
+    assert summary["evidence"]["confidence"] == 75
+
+
+def test_reviewer_node_marks_incident_not_required_without_jira():
+    state = {
+        "ai_classification": {"summary": "No ticket needed."},
+        "knowledge_base": {},
+        "jira": None,
+        "trajectory": [],
+    }
+
+    result = nodes.reviewer_node(state)
+
+    assert result["response_summary"]["incident"]["status"] == "not_required"
+
+
+def test_reviewer_node_marks_incident_pending_external_on_jira_failure():
+    state = {
+        "ai_classification": {"summary": "Ticket needed but Jira failed."},
+        "knowledge_base": {},
+        "jira": {"created": False, "fallback_status": "pending_external"},
+        "trajectory": [],
+    }
+
+    result = nodes.reviewer_node(state)
+
+    assert result["response_summary"]["incident"]["status"] == "pending_external"
 
 
 def test_resolver_node_skips_ticket_when_not_required():

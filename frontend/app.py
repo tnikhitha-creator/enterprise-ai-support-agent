@@ -1,213 +1,216 @@
+import os
+
 import requests
 import streamlit as st
 
-API_URL = "http://localhost:8000"
+from components.customer import render_customer
+from components.developer import render_developer
+from components.evidence import render_evidence
+from components.header import render_header
+from components.resolution import render_resolution
+from components.workflow import render_workflow
+from components.admin_dashboard import render_admin_dashboard
+
+from components.auth import (
+    admin_login,
+    is_admin_authenticated,
+    logout,
+)
+
+
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
+
 
 st.set_page_config(
     page_title="Agent Hub",
     layout="wide",
 )
 
-st.title("Agent Hub")
-st.caption("Enterprise Agentic AI Operations Platform")
 
-email = st.text_input(
-    "Customer email",
-    value="sarah@example.com",
+render_header()
+
+
+page = st.sidebar.selectbox(
+    "Navigation",
+    [
+        "Support Agent",
+        "Admin Dashboard",
+    ],
 )
 
-message = st.text_area(
-    "Describe the issue",
-    value="My password reset email never arrives and I cannot access my account.",
-    height=130,
-)
 
-if st.button("Analyze request", type="primary"):
-    if not email.strip() or not message.strip():
-        st.warning("Enter both an email address and a support request.")
+if page == "Admin Dashboard":
+
+    if not is_admin_authenticated():
+
+        admin_login()
+
         st.stop()
 
-    with st.spinner("Agent Hub is analyzing the request..."):
+
+    logout()
+
+    render_admin_dashboard()
+
+    st.stop()
+
+
+
+email = st.text_input(
+    "Your email",
+    placeholder="you@company.com",
+)
+
+
+message = st.text_area(
+    "What would you like Agent Hub to investigate?",
+    placeholder="Describe an IT, security, account, or billing issue...",
+    height=180,
+)
+
+
+if st.button(
+    "🚀 Analyze Request",
+    type="primary",
+    use_container_width=True,
+):
+
+    if not email.strip() or not message.strip():
+
+        st.warning(
+            "Enter both an email address and a request."
+        )
+
+        st.stop()
+
+
+    with st.spinner(
+        "Agent Hub is investigating..."
+    ):
+
         try:
+
             response = requests.post(
                 f"{API_URL}/support",
                 json={
                     "email": email.strip(),
                     "message": message.strip(),
                 },
-                timeout=120,
+                timeout=300,
             )
-            response.raise_for_status()
-            result = response.json()
+
 
         except requests.exceptions.ConnectionError:
+
             st.error(
-                "The FastAPI backend is not running. "
-                "Start it with: uvicorn backend.app.main:app --reload"
+                "The FastAPI backend is not running."
             )
+
             st.stop()
 
+
         except requests.exceptions.RequestException as exc:
-            st.error(f"Request failed: {exc}")
+
+            st.error(
+                f"Request failed: {exc}"
+            )
+
             st.stop()
+
+
+
+        if not response.ok:
+
+            st.error(
+                f"Agent Hub API error: {response.text}"
+            )
+
+            st.stop()
+
+
+
+        result = response.json()
+
+
 
     agent_result = result["agent_result"]
 
-    task_specification = agent_result.get("task_specification", {})
-    trajectory = agent_result.get("trajectory", [])
-    ai = agent_result.get("ai_classification", {})
-    customer = agent_result.get("customer", {})
-    knowledge = agent_result.get("knowledge_base", {})
-    jira = agent_result.get("jira")
-
-    st.success("Request analyzed successfully.")
-
-    st.subheader("Agent Hub")
-
-    completed_steps = sum(
-        step.get("status") == "completed"
-        for step in trajectory
+    security_status = agent_result.get(
+        "security_status",
+        "unknown",
     )
 
-    st.caption(
-        f"{completed_steps} of {len(trajectory)} workflow stages completed"
-    )
 
-    for step in trajectory:
-        status = step.get("status", "unknown")
+    if security_status == "blocked":
 
-        if status == "completed":
-            symbol = "✓"
-        elif status == "skipped":
-            symbol = "—"
-        elif status == "failed":
-            symbol = "×"
-        else:
-            symbol = "•"
-
-        duration = step.get("duration_ms", 0)
-
-        with st.container(border=True):
-            st.markdown(
-                f"**{symbol} {step.get('agent', 'Agent')}**"
-            )
-            st.caption(step.get("action", ""))
-            st.write(
-                f"Status: **{status.title()}** · "
-                f"Duration: **{duration} ms**"
-            )
-
-            if step.get("reason"):
-                st.caption(step["reason"])
-
-            if step.get("error"):
-                st.error(step["error"])
-
-    with st.expander("View task specification"):
-        st.json(task_specification)
-
-    st.subheader("Request analysis")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric(
-            "Intent",
-            ai.get("intent", "Unknown"),
+        st.error(
+            "🛡️ Security Policy Triggered"
         )
 
-    with col2:
-        st.metric(
-            "Priority",
-            ai.get("priority", "Unknown"),
-        )
 
-    with col3:
-        ticket_status = (
-            "Created"
-            if jira and jira.get("created")
-            else "Not created"
-        )
-
-        st.metric(
-            "Incident",
-            ticket_status,
-        )
-
-    st.subheader("AI summary")
-    st.write(
-        ai.get(
-            "summary",
-            "No summary generated.",
-        )
-    )
-
-    st.subheader("Customer context")
-
-    customer_col1, customer_col2 = st.columns(2)
-
-    with customer_col1:
-        st.write(
-            f"**Name:** {customer.get('name', 'Unknown')}"
-        )
-        st.write(
-            f"**Company:** {customer.get('company', 'Unknown')}"
-        )
-
-    with customer_col2:
-        st.write(
-            f"**Plan:** {customer.get('plan', 'Unknown')}"
-        )
-        st.write(
-            f"**Status:** {customer.get('status', 'Unknown')}"
-        )
-
-    st.subheader("Knowledge evidence")
-
-    source = knowledge.get("source") or "No source found"
-    answer_context = knowledge.get(
-        "answer_context",
-        "No knowledge result found.",
-    )
-
-    st.caption(f"Source: {source}")
-    st.info(answer_context)
-
-    if jira and jira.get("created"):
-        st.subheader("Incident")
-
-        incident_col1, incident_col2 = st.columns(2)
-
-        with incident_col1:
-            st.write(
-                f"**Ticket:** {jira.get('ticket_id', 'Unknown')}"
-            )
-
-        with incident_col2:
-            st.write("**Status:** Created")
-
-        if jira.get("ticket_url"):
-            st.link_button(
-                "Open incident",
-                jira["ticket_url"],
-            )
-
-    elif jira:
-        st.warning("The incident could not be created.")
-        st.code(
-            jira.get(
-                "error",
-                "Unknown Jira error",
+        st.info(
+            agent_result.get(
+                "final_response",
+                "Request blocked.",
             )
         )
 
-    st.subheader("Final response")
-    st.write(
-        result.get(
-            "output",
-            "No final response generated.",
+
+        col1, col2 = st.columns(2)
+
+
+        with col1:
+
+            st.metric(
+                "Risk Score",
+                f"{agent_result.get('security_risk_score',0)}/100",
+            )
+
+
+        with col2:
+
+            st.metric(
+                "Status",
+                "Blocked",
+            )
+
+
+        render_workflow(
+            agent_result
         )
-    )
+
+
+        render_developer(
+            agent_result
+        )
+
+
+    else:
+
+        render_resolution(
+            agent_result
+        )
+
+        render_customer(
+            agent_result
+        )
+
+        render_evidence(
+            agent_result
+        )
+
+        render_workflow(
+            agent_result
+        )
+
+        render_developer(
+            agent_result
+        )
+
+
 
 st.divider()
-st.caption("Built by Nikhitha")
+
+st.caption(
+    "Built by Nikhitha"
+)
