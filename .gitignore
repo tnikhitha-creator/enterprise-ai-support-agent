@@ -18,6 +18,8 @@ venv/
 # Local databases and generated indexes
 chroma_db/
 *.sqlite3
+*.db
+data/audit/
 
 # macOS
 .DS_Store
