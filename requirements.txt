@@ -10,3 +10,4 @@ langgraph
 bcrypt
 pytest
 sqlalchemy
+plotly
