@@ -11,3 +11,4 @@ bcrypt
 pytest
 sqlalchemy
 plotly
+langfuse
