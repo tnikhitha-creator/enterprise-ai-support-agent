@@ -1,0 +1,1 @@
+Employees should register an authenticator application, scan the enrollment QR code, and store backup recovery codes securely. Contact the security team if enrollment fails.

@@ -1,0 +1,7 @@
+If a VPN stops connecting after a Windows update, first restart the computer and confirm that the internet connection is working.
+
+Check whether the VPN client is compatible with the installed Windows version. Restart the VPN service and install any available VPN client updates.
+
+If the issue continues, remove and reinstall the VPN network adapter or VPN client. Confirm that firewall rules are not blocking the VPN application.
+
+Search recent resolved incidents for Windows update compatibility problems. Escalate the issue to the Network Operations team if multiple users are affected or if the VPN service remains unavailable.
