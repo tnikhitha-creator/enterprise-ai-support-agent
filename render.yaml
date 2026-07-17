@@ -33,8 +33,10 @@ services:
         sync: false
       - key: ADMIN_API_KEY
         sync: false
+      # Set this manually after the backend service deploys, to its full
+      # URL including the scheme (e.g. https://agent-hub-backend-xxxx.onrender.com).
+      # Render's fromService/property:host returns a bare internal hostname
+      # with no https:// prefix, which breaks outbound requests - confirmed
+      # the hard way, don't reintroduce it here.
       - key: API_URL
-        fromService:
-          type: web
-          name: agent-hub-backend
-          property: host
+        sync: false

@@ -6,6 +6,9 @@ issue, checks it against enterprise security guardrails, retrieves grounded know
 whether to open a Jira incident, and produces a verified response — with every step logged for
 an admin dashboard.
 
+**Live demo**: [agent-hub-frontend-ad3v.onrender.com](https://agent-hub-frontend-ad3v.onrender.com)
+— free-tier hosting, so the first request after a period of inactivity can take 30-60s to wake up.
+
 ## How it works
 
 ```
@@ -119,6 +122,24 @@ streamlit run frontend/app.py
 Langfuse tracing silently no-ops in this mode (no `LANGFUSE_HOST` is set locally) — no separate
 setup required.
 
+### Option C — Render (how the live demo is deployed)
+
+`render.yaml` defines two web services, each built from its own Dockerfile - no Ollama or
+Langfuse in this path, Groq handles classification instead:
+
+1. Render dashboard → New → Blueprint → connect this repo → it detects `render.yaml` and creates
+   `agent-hub-backend` and `agent-hub-frontend`.
+2. Fill in the prompted env vars: backend needs `JIRA_DOMAIN`, `JIRA_EMAIL`, `JIRA_API_TOKEN`,
+   `JIRA_PROJECT_KEY`, `ADMIN_API_KEY`, `GROQ_API_KEY`; frontend needs `ADMIN_USERNAME`,
+   `ADMIN_PASSWORD_HASH`, `ADMIN_API_KEY`, `API_URL`.
+3. **`API_URL` can't be filled in until the backend has a URL** - deploy the backend first, copy
+   its live URL (e.g. `https://agent-hub-backend-xxxx.onrender.com`, full scheme included), then
+   set that as the frontend's `API_URL` and redeploy the frontend.
+4. Double-check every variable actually saved - Render's blueprint UI has silently dropped
+   variables during setup before; if login fails with "Invalid username or password" immediately
+   even with correct credentials, check whether `ADMIN_PASSWORD_HASH` is simply missing rather
+   than wrong.
+
 ## Demo script
 
 Type any real-looking email into the **Your email** field (it's a free-text input, not a fixed
@@ -166,10 +187,12 @@ every push/PR via `.github/workflows/ci.yml`.
 
 ## Known limitations
 
-- **No public hosted demo yet** — Ollama needs real compute, which free/cheap hosting tiers don't
-  provide. Set `GROQ_API_KEY` (see `.env.example`) to route classification through Groq's free
-  tier instead of local Ollama when deploying — still an open-source Llama model, just hosted.
-  Run it locally via Option A or B above in the meantime.
+- **Audit history resets on every Render redeploy** — the free tier has no persistent disk, so
+  `data/agent_hub.db` (SQLite) is wiped whenever either service restarts or redeploys. Dashboard
+  metrics showing zero after a redeploy is expected, not a bug. Add a persistent disk (paid tier)
+  or point at an external Postgres to keep history across deploys.
+- **Free-tier cold starts** — both Render services sleep after ~15 minutes idle; the first
+  request afterward can take 30-60s before responding.
 - **Jira API tokens expire** — if ticket creation starts failing with
   `"errorMessages":["The target project doesn't exist or you don't have permission..."]`, check
   `/rest/api/3/myself` first (a `401`/`AUTHENTICATED_FAILED` there means the token itself is
