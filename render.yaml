@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: agent-hub-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: JIRA_DOMAIN
+        sync: false
+      - key: JIRA_EMAIL
+        sync: false
+      - key: JIRA_API_TOKEN
+        sync: false
+      - key: JIRA_PROJECT_KEY
+        sync: false
+      - key: ADMIN_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+
+  - type: web
+    name: agent-hub-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD_HASH
+        sync: false
+      - key: ADMIN_API_KEY
+        sync: false
+      - key: API_URL
+        fromService:
+          type: web
+          name: agent-hub-backend
+          property: host
